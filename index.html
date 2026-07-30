@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Game</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; background: #222; color: #fff; }
+        #status { font-size: 18px; margin-top: 20px; color: #00ffcc; }
+    </style>
+</head>
+<body>
+    <h1>GPS Zone Game</h1>
+    <p id="status">Joylashuv aniqlanmoqda...</p>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const statusEl = document.getElementById('status');
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+                statusEl.innerText = `Sizning koordinatangi: ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+                socket.emit('updatePosition', { lat, lon });
+            }, (err) => {
+                statusEl.innerText = "GPS ga ruxsat berilmadi yoki xatolik yuz berdi.";
+            }, { enableHighAccuracy: true });
+        } else {
+            statusEl.innerText = "Brauzeringiz GPS-ni qo'llab-quvvatlamaydi.";
+        }
+    </script>
+</body>
+</html>
