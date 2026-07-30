@@ -22,64 +22,67 @@
       border: 1px solid rgba(255,255,255,0.1);
     }
 
-    .avatar-box { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #00f2fe; overflow: hidden; }
-    .avatar-box img { width: 100%; height: 100%; object-fit: cover; }
-    
-    .bottom-panel { position: absolute; bottom: 20px; left: 10px; right: 10px; z-index: 1000; }
-    .btn-claim {
-      width: 100%; background: linear-gradient(135deg, #00c6ff, #0072ff);
+    .bottom-panel { position: absolute; bottom: 20px; left: 10px; right: 10px; z-index: 1000; display: flex; gap: 10px; }
+    .btn-action {
+      flex: 1; background: linear-gradient(135deg, #00c6ff, #0072ff);
       color: #fff; border: none; padding: 15px; border-radius: 12px;
-      font-size: 15px; font-weight: bold; text-transform: uppercase;
-      box-shadow: 0 4px 15px rgba(0, 114, 255, 0.4); cursor: pointer;
+      font-size: 14px; font-weight: bold; text-transform: uppercase; cursor: pointer;
     }
   </style>
 </head>
 <body>
 
   <div class="header-panel">
-    <div style="display:flex; align-items:center; gap:10px;">
-      <div class="avatar-box"><img id="my-avatar" src="" alt="Avatar"></div>
-      <div>
-        <div id="my-name" style="font-weight:bold; font-size:14px;">O'yinchi</div>
-        <div id="status" style="font-size:10px; color:#00ff88;">📡 Serverga ulanmoqda...</div>
-      </div>
+    <div>
+      <div id="my-name" style="font-weight:bold; font-size:14px; color:#00f2fe;">O'yinchi</div>
+      <div id="status" style="font-size:10px; color:#00ff88;">📡 Ulanmoqda...</div>
     </div>
     <div style="text-align:right;">
       <div id="meter-counter" style="font-size:16px; font-weight:bold; color:#00f2fe;">0 m</div>
-      <div style="font-size:9px; color:#aaa;">YURILGAN MASOFA</div>
+      <div style="font-size:9px; color:#aaa;">MASOFA</div>
     </div>
   </div>
 
   <div id="map"></div>
 
   <div class="bottom-panel">
-    <button class="btn-claim" onclick="claimTerritory()">⛳ HUDUDNI EGALLASH / KESISH</button>
+    <button class="btn-action" onclick="changeName()">✏️ Ismni o'zgartirish</button>
   </div>
 
   <script>
     const socket = io();
 
-    let userName = localStorage.getItem('custom_name') || "O'yinchi " + Math.floor(Math.random()*100);
-    let userPhoto = localStorage.getItem('custom_photo') || "https://ui-avatars.com/api/?name=" + userName + "&background=00f2fe&color=fff";
-
+    // Ismni brauzerdan olish yoki o'rnatish
+    let userName = localStorage.getItem('player_name');
+    if (!userName) {
+      userName = prompt("O'yindagi ismingizni kiriting:", "Sardor");
+      if (!userName) userName = "O'yinchi_" + Math.floor(Math.random()*1000);
+      localStorage.setItem('player_name', userName);
+    }
     document.getElementById('my-name').innerText = userName;
-    document.getElementById('my-avatar').src = userPhoto;
+
+    function changeName() {
+      let newName = prompt("Yangi ismni kiriting:", userName);
+      if (newName) {
+        localStorage.setItem('player_name', newName);
+        location.reload();
+      }
+    }
 
     const map = L.map('map', { zoomControl: false }).setView([40.6324, 72.3765], 18);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    let playerMarkers = {};
-    let playerLines = {};
-    let playerTerritories = {};
-    let lastCoord = null;
+    let playerMarker = null;
+    let playerLine = null;
+    let pathCoords = [];
+    let totalDist = 0;
 
     socket.on('connect', () => {
-      document.getElementById('status').innerText = "🟢 Onlayn Multiplayer";
+      document.getElementById('status').innerText = "🟢 Onlayn";
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(pos => {
           socket.emit('joinGame', {
             name: userName,
-            photo: userPhoto,
             lat: pos.coords.latitude,
             lng: pos.coords.longitude
           });
@@ -87,59 +90,24 @@
       }
     });
 
-    socket.on('territoryUpdated', (players) => {
-      Object.keys(players).forEach(id => {
-        const p = players[id];
-        if (playerTerritories[id]) map.removeLayer(playerTerritories[id]);
-        if (p.territoryFeature) {
-          const isMe = id === socket.id;
-          playerTerritories[id] = L.geoJSON(p.territoryFeature, {
-            style: {
-              color: isMe ? '#00f2fe' : '#ff2d55',
-              fillColor: isMe ? '#00f2fe' : '#ff2d55',
-              fillOpacity: 0.45,
-              weight: 2
-            }
-          }).addTo(map);
-        }
-      });
-    });
-
     socket.on('playerMoved', (data) => {
       if (data.id === socket.id) {
         document.getElementById('meter-counter').innerText = Math.round(data.distance) + " m";
       }
-
-      if (!playerMarkers[data.id]) {
-        const icon = L.divIcon({
-          className: 'custom-icon',
-          html: `<div style="text-align:center;"><img src="${userPhoto}" style="width:36px;height:36px;border-radius:50%;border:2px solid #00f2fe;"></div>`,
-          iconSize: [36, 36]
-        });
-        playerMarkers[data.id] = L.marker([data.lat, data.lng], { icon }).addTo(map);
-        playerLines[data.id] = L.polyline([], { color: '#00f2fe', weight: 4 }).addTo(map);
-      } else {
-        playerMarkers[data.id].setLatLng([data.lat, data.lng]);
-      }
-
-      const leafletPath = data.path.map(c => [c[1], c[0]]);
-      playerLines[data.id].setLatLngs(leafletPath);
     });
 
     if (navigator.geolocation) {
+      let lastCoord = null;
       navigator.geolocation.watchPosition(pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         let dist = 0;
         if (lastCoord) dist = map.distance(lastCoord, [lat, lng]);
         lastCoord = [lat, lng];
+        
         map.panTo([lat, lng]);
         socket.emit('playerMove', { lat, lng, dist });
       }, null, { enableHighAccuracy: true });
-    }
-
-    function claimTerritory() {
-      socket.emit('claimTerritory');
     }
   </script>
 </body>
