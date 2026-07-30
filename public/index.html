@@ -10,7 +10,7 @@
   <script src="/socket.io/socket.io.js"></script>
 
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
     body, html { width: 100%; height: 100%; overflow: hidden; background: #111; }
     #map { width: 100%; height: 100vh; }
 
@@ -20,7 +20,6 @@
       border-radius: 14px; padding: 10px 14px; display: flex;
       justify-content: space-between; align-items: center; color: #fff;
       border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
 
     .avatar-box { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #00f2fe; overflow: hidden; }
@@ -32,13 +31,6 @@
       color: #fff; border: none; padding: 15px; border-radius: 12px;
       font-size: 15px; font-weight: bold; text-transform: uppercase;
       box-shadow: 0 4px 15px rgba(0, 114, 255, 0.4); cursor: pointer;
-    }
-    .btn-claim:active { transform: scale(0.98); }
-
-    .player-label {
-      background: rgba(0,0,0,0.85); border: 1px solid #00f2fe;
-      color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 6px; font-size: 10px;
-      white-space: nowrap;
     }
   </style>
 </head>
@@ -54,7 +46,7 @@
     </div>
     <div style="text-align:right;">
       <div id="meter-counter" style="font-size:16px; font-weight:bold; color:#00f2fe;">0 m</div>
-      <div style="font-size:9px; color:#aaa; text-transform: uppercase;">Yurilgan Masofa</div>
+      <div style="font-size:9px; color:#aaa;">YURILGAN MASOFA</div>
     </div>
   </div>
 
@@ -95,13 +87,10 @@
       }
     });
 
-    // Barcha hududlarni xaritada yangilash
     socket.on('territoryUpdated', (players) => {
       Object.keys(players).forEach(id => {
         const p = players[id];
-
         if (playerTerritories[id]) map.removeLayer(playerTerritories[id]);
-
         if (p.territoryFeature) {
           const isMe = id === socket.id;
           playerTerritories[id] = L.geoJSON(p.territoryFeature, {
@@ -116,7 +105,6 @@
       });
     });
 
-    // Real-time harakatlanish
     socket.on('playerMoved', (data) => {
       if (data.id === socket.id) {
         document.getElementById('meter-counter').innerText = Math.round(data.distance) + " m";
@@ -125,9 +113,7 @@
       if (!playerMarkers[data.id]) {
         const icon = L.divIcon({
           className: 'custom-icon',
-          html: `<div style="text-align:center;">
-                   <img src="${userPhoto}" style="width:36px;height:36px;border-radius:50%;border:2px solid #00f2fe;">
-                 </div>`,
+          html: `<div style="text-align:center;"><img src="${userPhoto}" style="width:36px;height:36px;border-radius:50%;border:2px solid #00f2fe;"></div>`,
           iconSize: [36, 36]
         });
         playerMarkers[data.id] = L.marker([data.lat, data.lng], { icon }).addTo(map);
@@ -140,18 +126,13 @@
       playerLines[data.id].setLatLngs(leafletPath);
     });
 
-    // GPS kuzatuv
     if (navigator.geolocation) {
       navigator.geolocation.watchPosition(pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         let dist = 0;
-
-        if (lastCoord) {
-          dist = map.distance(lastCoord, [lat, lng]);
-        }
+        if (lastCoord) dist = map.distance(lastCoord, [lat, lng]);
         lastCoord = [lat, lng];
-
         map.panTo([lat, lng]);
         socket.emit('playerMove', { lat, lng, dist });
       }, null, { enableHighAccuracy: true });
